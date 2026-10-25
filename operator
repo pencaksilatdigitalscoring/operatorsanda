@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Operator Panel - WUSHU SANDA SCORING</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    
+    <!-- Library SheetJS untuk Export & Import Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sab: env(safe-area-inset-bottom);
+            --sal: env(safe-area-inset-left);
+            --sar: env(safe-area-inset-right);
+        }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f1f5f9; 
+            color: #0f172a; 
+            margin: 0; 
+            height: 100vh; 
+            width: 100vw; 
+            overflow: hidden; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .custom-scroll { overflow-y: auto; overflow-x: hidden; }
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scroll:hover::-webkit-scrollbar-thumb { background: #94a3b8; }
+
+        .save-notif { 
+            position: fixed; 
+            top: calc(15px + var(--sat)); 
+            right: calc(15px + var(--sar)); 
+            background: #10b981; 
+            color: white; 
+            padding: 12px 18px; 
+            border-radius: 8px; 
+            font-weight: 700; 
+            font-size: 13px;
+            transform: translateY(-150%); 
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            z-index: 60000; 
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+        .save-notif.show { transform: translateY(0); }
+
+        .modal-overlay { 
+            position: fixed; 
+            inset: 0; 
+            background: rgba(15, 23, 42, 0.85); 
+            z-index: 50000; 
+            display: none; 
+            align-items: center; 
+            justify-content: center; 
+            padding: 20px; 
+            backdrop-filter: blur(4px); 
+        }
+        .modal-overlay.active { display: flex; }
+
+        .active-babak { 
+            background-color: #0f172a !important; 
+            color: white !important; 
+            border-color: #0f172a !important; 
+        }
+        
+        .status-online { background-color: #10b981; }
+        .status-offline { background-color: #ef4444; animation: pulse-red 1.5s infinite; }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 5px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .bottom-nav-safe { padding-bottom: calc(0.75rem + var(--sab)); }
+        .header-safe {
+            padding-top: calc(0.75rem + var(--sat));
+            padding-left: calc(0.75rem + var(--sal));
+            padding-right: calc(0.75rem + var(--sar));
+        }
+
+        #config-content {
+            transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            overflow: hidden;
+        }
+        .config-hidden {
+            max-height: 0px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+            opacity: 0;
+            border: none !important;
+        }
+        .config-visible {
+            max-height: 600px;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen bg-slate-100 overflow-hidden text-slate-800">
+
+    <div id="save-ani" class="save-notif"><i class="fas fa-check-circle mr-2"></i> Sistem Tersinkronisasi</div>
+
+    <!-- MODAL LOGOUT JURI (RESPONSIF) -->
+    <div id="modal-logout-juri" class="modal-overlay">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl mx-auto border-t-4 border-amber-500 transform transition-all">
+            <h2 class="font-black text-xl uppercase text-slate-800 mb-1">Status & Logout Juri</h2>
+            <p class="text-[11px] text-slate-500 font-medium mb-5">Pilih juri yang online (hijau) untuk dikeluarkan dari sistem.</p>
+            
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <button id="btn-lo-j1" onclick="logoutJuri(1)" class="bg-slate-100 text-slate-400 py-3 rounded-xl font-bold text-sm transition-colors border border-slate-200">Juri 1</button>
+                <button id="btn-lo-j2" onclick="logoutJuri(2)" class="bg-slate-100 text-slate-400 py-3 rounded-xl font-bold text-sm transition-colors border border-slate-200">Juri 2</button>
+                <button id="btn-lo-j3" onclick="logoutJuri(3)" class="bg-slate-100 text-slate-400 py-3 rounded-xl font-bold text-sm transition-colors border border-slate-200">Juri 3</button>
+                <button id="btn-lo-j4" onclick="logoutJuri(4)" class="bg-slate-100 text-slate-400 py-3 rounded-xl font-bold text-sm transition-colors border border-slate-200">Juri 4</button>
+                <button id="btn-lo-j5" onclick="logoutJuri(5)" class="col-span-2 bg-slate-100 text-slate-400 py-3 rounded-xl font-bold text-sm transition-colors border border-slate-200">Juri 5</button>
+            </div>
+            
+            <button onclick="logoutJuri('all')" class="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white py-3 rounded-xl font-black uppercase text-sm mb-3 shadow-md transition-colors"><i class="fas fa-sign-out-alt mr-2"></i> Logout Semua Juri</button>
+            <button onclick="closeModal('modal-logout-juri')" class="w-full bg-slate-50 text-slate-500 hover:text-slate-700 py-2 rounded-xl font-bold uppercase text-xs transition-colors">Tutup</button>
+        </div>
+    </div>
+
+    <!-- MODAL KONFIRMASI KEPUTUSAN RONDE -->
+    <div id="modal-confirm-round-winner" class="modal-overlay">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl mx-auto border-t-4 border-indigo-600 transform transition-all">
+            <h2 class="font-black text-xl uppercase text-slate-800 mb-2">Konfirmasi Hasil Ronde</h2>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-5">
+                <p class="text-xs text-slate-500 font-bold uppercase mb-1">Hasil Perhitungan Juri:</p>
+                <div id="round-winner-text" class="text-2xl font-black text-slate-800 uppercase">-</div>
+                <p id="round-winner-detail" class="text-[11.5px] text-slate-500 font-medium mt-2 bg-white inline-block px-3 py-1 rounded shadow-sm border border-slate-200"></p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeModal('modal-confirm-round-winner')" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-bold uppercase text-xs transition-all border border-slate-200">Batal</button>
+                <button onclick="confirmRoundDecision()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-black uppercase text-xs shadow-md transition-all">Konfirmasi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL WINNER FINAL CONFIRMATION (MATCH) -->
+    <div id="modal-winner" class="modal-overlay">
+        <div class="bg-white rounded-2xl p-5 w-full max-w-sm text-center shadow-2xl mx-auto border-t-4 border-slate-800 transform transition-all">
+            <h2 class="font-black text-xl uppercase text-slate-800 mb-1">Keputusan Akhir Partai</h2>
+            <p class="text-[11px] text-slate-500 font-medium mb-5">Pilih pemenang partai ini untuk diperbarui ke database.</p>
+            
+            <div class="flex gap-3 mb-5">
+                <button onclick="finalizeWinner('biru')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-black uppercase text-sm shadow-lg transition-all border border-blue-700">
+                    <i class="fas fa-trophy block text-2xl mb-1 text-blue-200"></i>
+                    SUDUT BIRU
+                </button>
+                <button onclick="finalizeWinner('merah')" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-3 rounded-xl font-black uppercase text-sm shadow-lg transition-all border border-red-700">
+                    <i class="fas fa-trophy block text-2xl mb-1 text-red-200"></i>
+                    SUDUT MERAH
+                </button>
+            </div>
+            <button onclick="closeModal('modal-winner')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-600 py-3 rounded-xl font-bold uppercase text-xs transition-all border border-slate-200">Batal</button>
+        </div>
+    </div>
+
+    <!-- HEADER LAYOUT -->
+    <div class="header-safe pb-3 bg-slate-900 text-white shadow-md flex justify-between items-center shrink-0 z-30">
+        <div class="flex items-center gap-2.5">
+            <div class="bg-red-600 p-2 rounded-lg shadow-inner flex items-center justify-center">
+                <i class="fas fa-yin-yang text-lg text-white"></i>
+            </div>
+            <div>
+                <h2 class="text-sm font-black uppercase tracking-wider leading-tight">Operator Sanda</h2>
+                <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Scoring System</p>
+            </div>
+        </div>
+        
+        <div class="flex gap-2">
+            <input type="file" id="import-excel-input" accept=".xlsx, .xls" class="hidden" onchange="handleJadwalExcelImport(event)">
+            
+            <button onclick="exportTemplateExcel()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-colors shadow-sm hidden sm:block">
+                Template Excel
+            </button>
+            <button onclick="document.getElementById('import-excel-input').click()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-[10px] uppercase transition-colors flex items-center gap-1.5 shadow-sm">
+                <i class="fas fa-file-excel text-sm"></i> <span>Import Excel</span>
+            </button>
+        </div>
+    </div>
+    
+    <!-- CONTROL STATION PANEL -->
+    <div class="bg-white border-b border-slate-200 shadow-sm shrink-0 z-20 flex flex-col">
+        <button onclick="toggleConfig()" class="w-full bg-slate-50 border-b border-slate-100 py-2.5 px-4 flex justify-between items-center text-[10px] font-black text-slate-600 uppercase tracking-widest hover:bg-slate-100 transition-colors">
+            <span class="flex items-center gap-2"><i class="fas fa-sliders-h text-slate-400"></i> Kontrol & Konfigurasi Sistem</span>
+            <i id="toggle-config-icon" class="fas fa-chevron-up transition-transform duration-300 text-slate-400"></i>
+        </button>
+
+        <div id="config-content" class="config-visible px-4 py-4 border-b border-slate-200">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-5 md:gap-8 md:divide-x divide-slate-100">
+                
+                <!-- KIRI: Timer & Gap -->
+                <div class="flex-1 md:pr-5 flex flex-col gap-3">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="fas fa-clock"></i> Pengaturan Waktu</h3>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <div class="flex-1">
+                            <select onchange="setMatchTimer(this.value)" class="bg-slate-50 border border-slate-300 text-xs font-bold rounded-lg px-2 py-2 w-full outline-none focus:border-blue-500 transition-all cursor-pointer">
+                                <option value="120">2 Menit (Senior)</option>
+                                <option value="90">1.5 Menit (Remaja)</option>
+                                <option value="60">1 Menit (Junior)</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <select onchange="setPointGap(this.value)" id="op-gap-select" class="bg-slate-50 border border-slate-300 text-xs font-bold rounded-lg px-2 py-2 w-full outline-none focus:border-blue-500 transition-all cursor-pointer">
+                                <option value="12">Gap 12 Poin</option>
+                                <option value="10">Gap 10 Poin</option>
+                                <option value="99">Tanpa Gap</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 mt-1">
+                        <div class="text-4xl font-black text-slate-800 font-mono tracking-tighter w-24 text-center" id="op-timer-disp">02:00</div>
+                        <div class="flex gap-2 pr-1">
+                            <button onclick="timerCtrl('start')" class="bg-emerald-500 hover:bg-emerald-600 text-white w-12 h-10 rounded-lg font-black flex items-center justify-center text-sm shadow-sm transition-transform active:scale-95"><i class="fas fa-play"></i></button>
+                            <button onclick="timerCtrl('stop')" class="bg-amber-500 hover:bg-amber-600 text-white w-12 h-10 rounded-lg font-black flex items-center justify-center text-sm shadow-sm transition-transform active:scale-95"><i class="fas fa-pause"></i></button>
+                            <button onclick="timerCtrl('reset')" class="bg-rose-500 hover:bg-rose-600 text-white w-12 h-10 rounded-lg font-black flex items-center justify-center text-sm shadow-sm transition-transform active:scale-95"><i class="fas fa-undo"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KANAN: Juri & Kontrol Ronde -->
+                <div class="flex-1 md:pl-5 flex flex-col pt-3 md:pt-0 border-t md:border-t-0 border-slate-100">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5"><i class="fas fa-tablet-alt"></i> Status Juri</h3>
+                        <button onclick="openModal('modal-logout-juri')" class="text-[9px] bg-red-50 text-red-600 border border-red-200 px-2.5 py-1.5 rounded-md font-bold uppercase active:bg-red-100 shadow-sm active:scale-95 transition-all"><i class="fas fa-power-off mr-1"></i> Logout</button>
+                    </div>
+                    
+                    <div class="flex justify-between gap-1.5 mb-4" id="juri-status-container">
+                        <!-- Dinamis via JS -->
+                    </div>
+
+                    <h3 class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2 flex items-center gap-1.5"><i class="fas fa-layer-group"></i> Kontrol Ronde</h3>
+                    <div class="flex gap-2">
+                        <button onclick="setRound(1)" id="op-btn-b1" class="flex-1 bg-white border border-slate-300 text-slate-500 py-2 rounded-lg text-[10px] font-black uppercase active:bg-slate-100 shadow-sm transition-colors">Ronde 1</button>
+                        <button onclick="setRound(2)" id="op-btn-b2" class="flex-1 bg-white border border-slate-300 text-slate-500 py-2 rounded-lg text-[10px] font-black uppercase active:bg-slate-100 shadow-sm transition-colors">Ronde 2</button>
+                        <button onclick="setRound(3)" id="op-btn-b3" class="flex-1 bg-white border border-slate-300 text-slate-500 py-2 rounded-lg text-[10px] font-black uppercase active:bg-slate-100 shadow-sm transition-colors">Ronde 3</button>
+                    </div>
+
+                    <div class="flex flex-col gap-2 mt-3">
+                        <!-- TOMBOL KEPUTUSAN PEMENANG RONDE -->
+                        <button onclick="previewRoundWinner()" class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white py-2.5 rounded-lg text-[11px] font-black uppercase shadow-md flex items-center justify-center transition-all active:scale-[0.98]">
+                            Keputusan Pemenang Ronde Aktif
+                        </button>
+                        <!-- TOMBOL RESET NILAI JURI -->
+                        <button onclick="resetSkorJuriConfirm()" class="w-full bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 active:bg-rose-200 py-2 rounded-lg text-[10px] font-black uppercase shadow-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                            <i class="fas fa-eraser"></i> Reset Nilai Juri (Jadikan 0)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MATCH LIST AREA -->
+    <div class="flex-1 overflow-y-auto custom-scroll relative bg-slate-100 z-0 flex flex-col pb-20">
+        <!-- Filter Bar -->
+        <div class="sticky top-0 bg-slate-100/95 backdrop-blur z-10 px-3 md:px-5 pt-3 pb-2 border-b border-slate-200">
+            <div class="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2">
+                <div class="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm flex-1 sm:max-w-xs">
+                    <i class="fas fa-filter text-slate-400 text-[10px]"></i>
+                    <select id="category-filter" onchange="renderOperatorTable()" class="bg-transparent border-none text-[11px] font-bold text-slate-700 outline-none w-full cursor-pointer appearance-none truncate">
+                        <option value="ALL">SEMUA KELAS / KATEGORI</option>
+                    </select>
+                    <i class="fas fa-chevron-down text-slate-400 text-[9px]"></i>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
+                        Total: <span id="total-match-info" class="text-slate-800 font-black text-xs ml-1">0</span> Partai
+                    </div>
+                    <button onclick="deleteAllMatches()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-colors shadow-sm">
+                        <i class="fas fa-trash-alt mr-1"></i> Kosongkan
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-3 md:px-5 pt-3 pb-6 max-w-5xl mx-auto w-full">
+            <div id="operator-table-body" class="space-y-3 md:space-y-4">
+                <!-- Data Match Dinamis -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- PAGINATION -->
+    <div class="bg-white/95 backdrop-blur-md border-t border-slate-200 flex justify-between items-center z-[40000] absolute bottom-0 left-0 right-0 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] bottom-nav-safe px-3 pt-3">
+        <div class="max-w-5xl mx-auto w-full flex justify-between items-center gap-2">
+            <button onclick="changeOperatorPage(-1)" class="bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 px-4 md:px-6 py-2.5 rounded-lg text-[11px] font-black uppercase shadow-sm transition-all flex items-center gap-2">
+                <i class="fas fa-chevron-left"></i> <span class="hidden sm:inline">SEBELUMNYA</span>
+            </button>
+            <span id="op-page-info" class="text-[11px] md:text-xs font-black text-slate-700 bg-slate-100 px-4 md:px-5 py-2 rounded-lg border border-slate-200">Hal 1 / 10</span>
+            <button onclick="changeOperatorPage(1)" class="bg-white hover:bg-slate-50 text-slate-600 border border-slate-300 px-4 md:px-6 py-2.5 rounded-lg text-[11px] font-black uppercase shadow-sm transition-all flex items-center gap-2">
+                <span class="hidden sm:inline">SELANJUTNYA</span> <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+<script>
+    window.toggleConfig = function() {
+        const content = document.getElementById('config-content');
+        const icon = document.getElementById('toggle-config-icon');
+        if (content.classList.contains('config-visible')) {
+            content.classList.remove('config-visible'); content.classList.add('config-hidden');
+            icon.style.transform = 'rotate(180deg)';
+        } else {
+            content.classList.remove('config-hidden'); content.classList.add('config-visible');
+            icon.style.transform = 'rotate(0deg)';
+        }
+    };
+</script>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyCUhrQj0vxKYDtf1iSJVetY6gQ5K932blM",
+        authDomain: "wushu-sanda-b85dc.firebaseapp.com",
+        databaseURL: "https://wushu-sanda-b85dc-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "wushu-sanda-b85dc",
+        storageBucket: "wushu-sanda-b85dc.firebasestorage.app",
+        messagingSenderId: "335593032214",
+        appId: "1:335593032214:web:65e2186bee003408c48337"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+    const dbRef = ref(database, 'wushu_sanda_scoring');
+
+    // Struktur State Utama - Terhubung dengan Dewan & Juri
+    const INITIAL_STATE = {
+        timer: 120, babak: 1, isRunning: false, idx: 0, bertandingIdx: -1, persiapanIdx: -1,
+        monViewMode: 'score', pointGap: 12,
+        matches: Array.from({length: 200}, (_, i) => ({ 
+            p: i+1, m: "", b: "", km: "", kb: "", cat: "SENIOR", kelas: "56KG", gender: "PUTRA", fase: "PENYISIHAN", status: 'idle',
+            winner: "", winnerSide: "", maxBabak: 3, maxTimer: 120, nextP: null, beratB: "", beratM: ""
+        })),
+        merah: { baseScore: [0,0,0], actions: [], roundWins: [false,false,false], juri: { j1: [0,0,0], j2: [0,0,0], j3: [0,0,0], j4: [0,0,0], j5: [0,0,0] } },
+        biru: { baseScore: [0,0,0], actions: [], roundWins: [false,false,false], juri: { j1: [0,0,0], j2: [0,0,0], j3: [0,0,0], j4: [0,0,0], j5: [0,0,0] } },
+        juriStatus: { j1: false, j2: false, j3: false, j4: false, j5: false },
+        forceLogoutJuri: false,
+        roundDecision: [false, false, false]
+    };
+
+    window.state = INITIAL_STATE;
+    let tInt = null;
+    window.operatorPage = 0;
+    let pendingFinishIdx = -1;
+    let pendingRoundDecision = null;
+
+    onValue(dbRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) { 
+            window.state = data; 
+            updateUI(); 
+            updateLogoutModalUI(); // Update UI Modal Logout secara real-time
+            renderOperatorTable();
+            populateCategoryFilter();
+        } else { 
+            set(dbRef, INITIAL_STATE); 
+        }
+    });
+
+    window.broadcast = function(path = "", value = null) {
+        if (path !== "") { set(ref(database, 'wushu_sanda_scoring/' + path), value); } 
+        else { set(dbRef, window.state); }
+    }
+
+    window.showNotif = function(customMsg) { 
+        const n = document.getElementById('save-ani'); 
+        n.innerHTML = customMsg || '<i class="fas fa-check-circle mr-2"></i> Tersimpan';
+        n.classList.add('show'); 
+        setTimeout(() => n.classList.remove('show'), 2500); 
+    }
+
+    window.openModal = function(id) { document.getElementById(id).classList.add('active'); }
+    window.closeModal = function(id) { document.getElementById(id).classList.remove('active'); }
+
+    window.updateUI = function() {
+        const tStr = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${((s||0)%60).toString().padStart(2,'0')}`;
+        const el = document.getElementById('op-timer-disp'); 
+        if(el) el.innerText = tStr(window.state.timer);
+        
+        [1,2,3].forEach(b => { 
+            const btn = document.getElementById('op-btn-b' + b); 
+            if(btn) btn.classList.toggle('active-babak', window.state.babak === b); 
+        });
+
+        const gapEl = document.getElementById('op-gap-select');
+        if(gapEl) gapEl.value = window.state.pointGap || "12";
+
+        renderJuriStatus();
+    }
+
+    window.setMatchTimer = function(seconds) {
+        if(!seconds) return;
+        const s = parseInt(seconds);
+        window.broadcast('timer', s);
+        if(window.state.bertandingIdx >= 0) window.broadcast(`matches/${window.state.bertandingIdx}/maxTimer`, s);
+        showNotif('<i class="fas fa-clock mr-2"></i> Durasi Diubah');
+    }
+
+    window.setPointGap = function(val) {
+        window.broadcast('pointGap', parseInt(val));
+        showNotif('<i class="fas fa-cog mr-2"></i> Gap Diubah');
+    }
+
+    window.timerCtrl = function(cmd) { 
+        if(cmd === 'start') { 
+            window.broadcast('isRunning', true); startTimerLogic(); 
+        } else if(cmd === 'stop') { 
+            window.broadcast('isRunning', false); if(tInt) clearInterval(tInt); 
+        } else if(cmd === 'reset') { 
+            window.broadcast('isRunning', false); 
+            const activeMatch = window.state.matches[window.state.bertandingIdx] || window.state.matches[window.state.idx];
+            window.broadcast('timer', activeMatch.maxTimer || 120); 
+        } 
+    }
+
+    function startTimerLogic() { 
+        if(tInt) clearInterval(tInt); 
+        tInt = setInterval(() => { 
+            if(window.state.isRunning && window.state.timer > 0) window.broadcast('timer', window.state.timer - 1); 
+            else if(window.state.timer <= 0) { clearInterval(tInt); window.broadcast('isRunning', false); } 
+        }, 1000); 
+    }
+
+    window.setRound = function(n) { if(!window.state.isRunning) window.broadcast('babak', n); }
+
+    // --- VISUALISASI JURI DI PANEL UTAMA ---
+    window.renderJuriStatus = function() {
+        const container = document.getElementById('juri-status-container');
+        const js = window.state.juriStatus || INITIAL_STATE.juriStatus;
+        let html = '';
+        for(let i=1; i<=5; i++){
+            const isOnline = js[`j${i}`];
+            const dotClass = isOnline ? 'status-online' : 'status-offline';
+            // Jika online -> hijau, Jika offline -> merah
+            const textClass = isOnline ? 'text-emerald-700 font-bold' : 'text-red-500 font-black';
+            const bgClass = isOnline ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200';
+            
+            html += `<div class="flex-1 ${bgClass} border rounded-lg p-1.5 flex flex-col items-center justify-center shadow-sm transition-colors duration-300">
+                <div class="flex items-center gap-1 mb-0.5"><span class="w-2 h-2 rounded-full ${dotClass} inline-block shrink-0"></span><span class="text-[9px] ${textClass}">J${i}</span></div>
+            </div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    // --- FITUR LOGOUT JURI RESPONSIF (MODAL) ---
+    window.updateLogoutModalUI = function() {
+        const js = window.state.juriStatus || {j1:false, j2:false, j3:false, j4:false, j5:false};
+        for(let i=1; i<=5; i++) {
+            const btn = document.getElementById('btn-lo-j'+i);
+            if(btn) {
+                if(js['j'+i]) {
+                    // Online (Bisa dilogout) -> Hijau
+                    btn.className = "bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white py-3 rounded-xl font-bold text-sm transition-colors shadow-sm";
+                    btn.innerHTML = `Juri ${i} <span class="block text-[9px] font-normal mt-0.5 text-emerald-100">Online (Klik utk Logout)</span>`;
+                    btn.disabled = false;
+                } else {
+                    // Offline -> Merah Redup / Disable
+                    btn.className = "bg-red-100 text-red-500 py-3 rounded-xl font-bold text-sm transition-colors border border-red-200 cursor-not-allowed opacity-80";
+                    btn.innerHTML = `Juri ${i} <span class="block text-[9px] font-normal mt-0.5 text-red-400">Offline / Terputus</span>`;
+                    btn.disabled = true;
+                }
+            }
+        }
+    }
+
+    window.logoutJuri = function(id) {
+        if(id === 'all') {
+            window.broadcast('forceLogoutJuri', 'all');
+            window.broadcast('juriStatus', {j1:false, j2:false, j3:false, j4:false, j5:false});
+            showNotif('<i class="fas fa-sign-out-alt mr-2"></i> Semua Juri Ter-logout');
+            
+            // Efek UI Langsung (Optimistic Update)
+            for(let i=1; i<=5; i++) {
+                let btn = document.getElementById('btn-lo-j'+i);
+                if(btn) {
+                    btn.className = "bg-red-100 text-red-500 py-3 rounded-xl font-bold text-sm transition-colors border border-red-200 cursor-not-allowed opacity-80";
+                    btn.innerHTML = `Juri ${i} <span class="block text-[9px] font-normal mt-0.5 text-red-400">Offline / Terputus</span>`;
+                    btn.disabled = true;
+                }
+            }
+        } else {
+            window.broadcast('forceLogoutJuri', 'j'+id);
+            window.broadcast(`juriStatus/j${id}`, false);
+            showNotif(`<i class="fas fa-sign-out-alt mr-2"></i> Juri ${id} Ter-logout`);
+            
+            // Efek UI Langsung (Optimistic Update)
+            let btn = document.getElementById('btn-lo-j'+id);
+            if(btn) {
+                btn.className = "bg-red-100 text-red-500 py-3 rounded-xl font-bold text-sm transition-colors border border-red-200 cursor-not-allowed opacity-80";
+                btn.innerHTML = `Juri ${id} <span class="block text-[9px] font-normal mt-0.5 text-red-400">Offline / Terputus</span>`;
+                btn.disabled = true;
+            }
+        }
+        setTimeout(() => window.broadcast('forceLogoutJuri', false), 3000);
+    }
+
+    // --- FITUR RESET NILAI JURI ---
+    window.resetSkorJuriConfirm = function() {
+        if(window.state.bertandingIdx === -1) return alert("Belum ada partai yang aktif tanding (LIVE)!");
+        
+        if(confirm("YAKIN RESET SELURUH NILAI JURI & RONDE?\nSemua poin juri, poin penalti/hukuman, dan riwayat kemenangan ronde pada partai ini akan menjadi 0.")) {
+            const emptySide = {
+                baseScore: [0,0,0], actions: [], roundWins: [false,false,false],
+                juri: { j1:[0,0,0], j2:[0,0,0], j3:[0,0,0], j4:[0,0,0], j5:[0,0,0] }
+            };
+            window.broadcast('merah', emptySide); 
+            window.broadcast('biru', emptySide); 
+            window.broadcast('roundDecision', [false, false, false]); // Matikan lampu keputusan
+            
+            showNotif('<i class="fas fa-eraser mr-2"></i> Nilai Juri Direset ke 0');
+        }
+    }
+
+    // --- FITUR PREVIEW & KEPUTUSAN PEMENANG RONDE ---
+    window.previewRoundWinner = function() {
+        if(window.state.bertandingIdx === -1) return alert("Belum ada partai yang aktif tanding (LIVE)!");
+        if(window.state.isRunning) return alert("Hentikan (Pause) waktu terlebih dahulu sebelum mengambil keputusan ronde!");
+
+        const state = window.state;
+        const r = (state.babak || 1) - 1; // 0 for Round 1
+
+        // Kalkulasi Hukuman Lawan (Penalti bernilai +2 untuk lawan)
+        const getPen = (side) => {
+            const opp = side === 'merah' ? 'biru' : 'merah';
+            const acts = state[opp].actions || [];
+            return (acts.filter(a => a.type === 'caution' && a.round === r+1).length * 2) + 
+                   (acts.filter(a => a.type === '8count' && a.round === r+1).length * 2) + 
+                   (acts.filter(a => a.type === 'ringout' && a.round === r+1).length * 2);
+        };
+
+        const penM = getPen('merah');
+        const penB = getPen('biru');
+
+        let mVotes = 0; let bVotes = 0;
+
+        // Kalkulasi Nilai per Juri & Tentukan Pemenang per Juri
+        for (let i = 1; i <= 5; i++) {
+            const jKey = 'j'+i;
+            const rawM = (state.merah.juri && state.merah.juri[jKey]) ? (state.merah.juri[jKey][r] || 0) : 0;
+            const rawB = (state.biru.juri && state.biru.juri[jKey]) ? (state.biru.juri[jKey][r] || 0) : 0;
+            const baseM = (state.merah.baseScore) ? (state.merah.baseScore[r] || 0) : 0;
+            const baseB = (state.biru.baseScore) ? (state.biru.baseScore[r] || 0) : 0;
+
+            const totalM = rawM + baseM + penM;
+            const totalB = rawB + baseB + penB;
+
+            if (totalM > totalB) mVotes++;
+            else if (totalB > totalM) bVotes++;
+        }
+
+        const mWinsRound = mVotes > bVotes;
+        const bWinsRound = bVotes > mVotes;
+        
+        let winnerText = mWinsRound ? "SUDUT MERAH" : (bWinsRound ? "SUDUT BIRU" : "SERI (TIE)");
+        let colorClass = mWinsRound ? "text-red-600" : (bWinsRound ? "text-blue-600" : "text-slate-600");
+        
+        // Update UI Modal
+        document.getElementById('round-winner-text').innerText = winnerText;
+        document.getElementById('round-winner-text').className = `text-2xl font-black uppercase mt-1 ${colorClass}`;
+        document.getElementById('round-winner-detail').innerText = `Didukung oleh: ${mVotes} Juri Merah  |  ${bVotes} Juri Biru`;
+
+        // Simpan Hasil ke memory sebelum dikonfirmasi
+        pendingRoundDecision = { r: r, mWinsRound: mWinsRound, bWinsRound: bWinsRound, text: winnerText };
+
+        openModal('modal-confirm-round-winner');
+    }
+
+    // --- EKSEKUSI FINAL KEPUTUSAN RONDE ---
+    window.confirmRoundDecision = function() {
+        if(!pendingRoundDecision) return;
+        const p = pendingRoundDecision;
+
+        // Tembak Data Kemenangan ke DB
+        window.broadcast(`merah/roundWins/${p.r}`, p.mWinsRound);
+        window.broadcast(`biru/roundWins/${p.r}`, p.bWinsRound);
+        
+        // Tembak Data Lampu Dewan agar Menyala Otomatis
+        window.broadcast(`roundDecision/${p.r}`, true);
+
+        showNotif(`<i class="fas fa-gavel mr-2"></i> Keputusan Sukses!<br>Ronde ${p.r+1}: <b>${p.text}</b>`);
+        
+        closeModal('modal-confirm-round-winner');
+        pendingRoundDecision = null;
+    }
+
+
+    // --- MANAJEMEN RESET PARTAI (DEEP RESET) ---
+    function resetActiveMatchData() { 
+        window.broadcast('babak', 1); 
+        window.broadcast('isRunning', false); 
+        const emptySide = {
+            baseScore: [0,0,0], actions: [], roundWins: [false,false,false],
+            juri: { j1:[0,0,0], j2:[0,0,0], j3:[0,0,0], j4:[0,0,0], j5:[0,0,0] }
+        };
+        window.broadcast('merah', emptySide); 
+        window.broadcast('biru', emptySide); 
+        window.broadcast('roundDecision', [false, false, false]); // Reset sinyal lampu dewan
+    }
+
+    window.resetMatch = function(idx) {
+        if(confirm(`Reset data partai ${idx+1} secara keseluruhan? (Status akan kembali idle dan pemenang dihapus)`)) {
+            const m = {...window.state.matches[idx]};
+            m.status = 'idle'; m.winner = ""; m.winnerSide = "";
+            window.broadcast(`matches/${idx}`, m);
+            if(window.state.bertandingIdx === idx) resetActiveMatchData();
+            showNotif("Partai berhasil di-reset");
+        }
+    }
+
+    window.deleteMatch = function(idx) { 
+        if(confirm(`Hapus jadwal partai ke-${idx+1}? Data petarung akan dihilangkan.`)) { 
+            const updated = [...window.state.matches]; 
+            updated[idx] = { p: idx+1, m: "", b: "", km: "", kb: "", cat: "SENIOR", kelas: "56KG", gender: "PUTRA", fase: "PENYISIHAN", status: 'idle', winner: "", winnerSide: "", maxBabak: 3, maxTimer: 120, nextP: null, beratB: "", beratM: "" };
+            window.broadcast('matches', updated);
+            showNotif("Partai Dihapus"); 
+        } 
+    }
+
+    window.deleteAllMatches = function() {
+        if(confirm("PERINGATAN BAHAYA!\nAnda yakin ingin MENGHAPUS SEMUA DAFTAR PARTAI? Tindakan ini tidak bisa dibatalkan!")) {
+            if(confirm("Apakah Anda benar-benar yakin?")) {
+                window.broadcast('matches', INITIAL_STATE.matches);
+                showNotif("Seluruh Daftar Partai Dikosongkan!");
+                window.operatorPage = 0;
+            }
+        }
+    }
+
+    window.populateCategoryFilter = function() {
+        const filter = document.getElementById('category-filter');
+        const currentVal = filter.value;
+        const matches = window.state.matches.filter(m => m.b || m.m);
+        const categories = new Set();
+        matches.forEach(m => { if(m.b !== "BYE" && m.m !== "BYE") categories.add(`${m.kelas} ${m.cat} ${m.gender}`); });
+
+        let opts = `<option value="ALL">SEMUA KELAS / KATEGORI</option>`;
+        Array.from(categories).sort().forEach(c => { opts += `<option value="${c}">${c}</option>`; });
+        filter.innerHTML = opts; filter.value = currentVal; 
+    }
+
+    window.renderOperatorTable = function() { 
+        const container = document.getElementById('operator-table-body'); 
+        const filterVal = document.getElementById('category-filter')?.value || "ALL";
+        
+        let allValidMatches = window.state.matches.filter(m => m.m || m.b);
+        if (filterVal !== "ALL") allValidMatches = allValidMatches.filter(m => `${m.kelas} ${m.cat} ${m.gender}` === filterVal);
+        document.getElementById('total-match-info').innerText = allValidMatches.length;
+
+        const start = window.operatorPage * 10; 
+        const pageMatches = allValidMatches.slice(start, start + 10); 
+        
+        if (pageMatches.length === 0) {
+            container.innerHTML = `<div class="bg-white rounded-xl border border-slate-200 border-dashed p-10 mt-5 flex flex-col items-center justify-center text-slate-400">
+                <i class="fas fa-folder-open text-3xl mb-2 text-slate-300"></i><span class="text-[11px] font-bold uppercase tracking-widest">Kosong</span><p class="text-[10px] mt-1">Belum ada daftar jadwal.</p></div>`;
+            return;
+        }
+
+        container.innerHTML = pageMatches.map((m, i) => { 
+            const isB = window.state.bertandingIdx === m.p-1; const isP = window.state.persiapanIdx === m.p-1; const isS = m.status === 'selesai'; 
+            let borderClass = "border-slate-200 hover:border-slate-300"; let statusBadge = "";
+
+            if(isB) { borderClass = "border-emerald-500 shadow-md ring-1 ring-emerald-500"; statusBadge = `<span class="bg-emerald-500 text-white px-2 py-0.5 rounded-bl-lg text-[8px] font-black uppercase tracking-widest absolute top-0 right-0 z-10 shadow-sm"><i class="fas fa-circle text-[6px] mr-1 animate-pulse"></i> LIVE</span>`; } 
+            else if(isP) { borderClass = "border-amber-400 shadow-sm"; statusBadge = `<span class="bg-amber-500 text-white px-2 py-0.5 rounded-bl-lg text-[8px] font-black uppercase tracking-widest absolute top-0 right-0 z-10 shadow-sm"><i class="fas fa-clock mr-1"></i> STANDBY</span>`; } 
+            else if(isS) { borderClass = "border-slate-200 opacity-75 bg-slate-50"; statusBadge = `<span class="bg-slate-700 text-white px-2 py-0.5 rounded-bl-lg text-[8px] font-black uppercase tracking-widest absolute top-0 right-0 z-10 shadow-sm"><i class="fas fa-check mr-1"></i> FINISH</span>`; }
+
+            const isBWin = isS && m.winnerSide === 'biru'; const isMWin = isS && m.winnerSide === 'merah';
+            
+            // Format render berat badan agar tidak menampilkan "undefined Kg" atau "- Kg" jika data tidak ada
+            const bbBiruView = (m.beratB && String(m.beratB).trim() !== '-') ? m.beratB + ' Kg' : '-';
+            const bbMerahView = (m.beratM && String(m.beratM).trim() !== '-') ? m.beratM + ' Kg' : '-';
+
+            return `
+            <div class="bg-white rounded-xl border ${borderClass} relative flex flex-col sm:flex-row items-stretch overflow-hidden shadow-sm">
+                ${statusBadge}
+                <div class="bg-slate-50 p-2.5 sm:p-3 flex flex-row sm:flex-col justify-between sm:justify-center items-center text-center w-full sm:w-20 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200">
+                    <div class="flex items-center sm:flex-col gap-2 sm:gap-0"><span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block sm:mb-0.5">PARTAI</span><span class="text-xl sm:text-2xl font-black text-slate-800 leading-none">${m.p}</span></div>
+                    <span class="text-[8px] font-black bg-slate-800 text-white px-2 py-1 rounded sm:mt-2 uppercase tracking-wider">${m.fase}</span>
+                </div>
+                <div class="flex-1 p-2.5 sm:p-3 flex flex-col justify-center min-w-0">
+                    <div class="text-[9px] sm:text-[10px] font-bold text-slate-500 mb-2 uppercase flex items-center gap-1"><i class="fas fa-tag text-slate-400"></i> ${m.kelas} ${m.cat} ${m.gender}</div>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center justify-between bg-white border ${isBWin ? 'border-blue-500 shadow-sm bg-blue-50/30' : 'border-slate-100'} rounded p-2 relative">
+                            <div class="w-1.5 h-full bg-blue-600 absolute left-0 top-0 rounded-l"></div>
+                            <div class="pl-3 flex-1 min-w-0 pr-2">
+                                <div class="font-black text-xs sm:text-sm uppercase text-slate-800 truncate">${m.b} ${isBWin ? '<i class="fas fa-medal text-amber-500 ml-1"></i>' : ''}</div>
+                                <div class="text-[9px] font-bold text-slate-500 uppercase mt-0.5 truncate flex items-center gap-1"><i class="fas fa-map-marker-alt text-slate-300"></i> ${m.kb || '-'}</div>
+                            </div>
+                            <div class="text-[9px] sm:text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded shrink-0">${bbBiruView}</div>
+                        </div>
+                        <div class="flex items-center justify-between bg-white border ${isMWin ? 'border-red-500 shadow-sm bg-red-50/30' : 'border-slate-100'} rounded p-2 relative">
+                            <div class="w-1.5 h-full bg-red-600 absolute left-0 top-0 rounded-l"></div>
+                            <div class="pl-3 flex-1 min-w-0 pr-2">
+                                <div class="font-black text-xs sm:text-sm uppercase text-slate-800 truncate">${m.m} ${isMWin ? '<i class="fas fa-medal text-amber-500 ml-1"></i>' : ''}</div>
+                                <div class="text-[9px] font-bold text-slate-500 uppercase mt-0.5 truncate flex items-center gap-1"><i class="fas fa-map-marker-alt text-slate-300"></i> ${m.km || '-'}</div>
+                            </div>
+                            <div class="text-[9px] sm:text-[10px] font-black text-red-700 bg-red-50 px-2 py-1 rounded shrink-0">${bbMerahView}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-2 sm:p-3 bg-slate-50 flex flex-row sm:flex-col justify-center gap-1.5 sm:gap-2 border-t sm:border-t-0 sm:border-l border-slate-200 shrink-0 sm:w-28">
+                    <button onclick="setMatchStatus(${m.p-1}, 'persiapan')" class="flex-1 text-[9px] font-black py-2.5 sm:py-2 px-1 rounded uppercase active:scale-95 transition-all ${isP ? 'bg-amber-500 text-white shadow-sm' : 'bg-white border border-slate-300 text-slate-600 shadow-sm hover:bg-slate-100'}">Standby</button>
+                    <button onclick="setMatchStatus(${m.p-1}, 'bertanding')" class="flex-1 text-[9px] font-black py-2.5 sm:py-2 px-1 rounded uppercase active:scale-95 transition-all ${isB ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white border border-slate-300 text-slate-600 shadow-sm hover:bg-slate-100'}">Live</button>
+                    <button onclick="setMatchStatus(${m.p-1}, 'selesai')" class="flex-1 text-[9px] font-black py-2.5 sm:py-2 px-1 rounded uppercase active:scale-95 transition-all ${isS ? 'bg-slate-700 text-white shadow-sm' : 'bg-slate-800 text-white shadow-sm hover:bg-slate-700'}">Finish</button>
+                    <div class="hidden sm:flex justify-around mt-1 pt-2 border-t border-slate-200">
+                        <button onclick="resetMatch(${m.p-1})" class="text-xs text-slate-400 hover:text-amber-500 transition-colors" title="Reset Partai"><i class="fas fa-undo"></i></button>
+                        <button onclick="deleteMatch(${m.p-1})" class="text-xs text-slate-400 hover:text-rose-500 transition-colors" title="Hapus Partai"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>`; 
+        }).join(''); 
+        
+        const max = Math.max(1, Math.ceil(allValidMatches.length/10));
+        document.getElementById('op-page-info').innerText = `Hal ${window.operatorPage + 1} / ${max}`; 
+    }
+
+    window.changeOperatorPage = function(v) { 
+        const filterVal = document.getElementById('category-filter')?.value || "ALL";
+        let valid = window.state.matches.filter(m => m.m || m.b);
+        if(filterVal !== "ALL") valid = valid.filter(m => `${m.kelas} ${m.cat} ${m.gender}` === filterVal);
+        const max = Math.max(0, Math.ceil(valid.length/10)-1); 
+        let n = window.operatorPage+v; 
+        if(n>=0 && n<=max){ window.operatorPage=n; renderOperatorTable(); document.querySelector('.custom-scroll').scrollTo({ top: 0, behavior: 'smooth' }); } 
+    }
+
+    window.setMatchStatus = function(idx, status) { 
+        if(status === 'bertanding') { 
+            if(window.state.bertandingIdx === idx) { window.broadcast('bertandingIdx', -1); } 
+            else { 
+                window.broadcast('bertandingIdx', idx); window.broadcast('idx', idx); 
+                resetActiveMatchData(); // Deep reset saat LIVE partai baru
+                const matchTimer = window.state.matches[idx].maxTimer || 120; window.broadcast('timer', matchTimer); 
+            } 
+        } 
+        else if(status === 'persiapan') { window.broadcast('persiapanIdx', (window.state.persiapanIdx === idx) ? -1 : idx); } 
+        else if(status === 'selesai') { pendingFinishIdx = idx; openModal('modal-winner'); } 
+    }
+
+    window.finalizeWinner = function(side) {
+        if(pendingFinishIdx < 0) return;
+        const idx = pendingFinishIdx;
+        const m = {...window.state.matches[idx]}; 
+        m.status = 'selesai'; m.winnerSide = side; m.winner = (side === 'merah') ? m.m : m.b; 
+        
+        window.broadcast(`matches/${idx}`, m); 
+        window.broadcast('monViewMode', 'winner');
+        closeModal('modal-winner'); pendingFinishIdx = -1;
+        setTimeout(() => propagateWinner(idx), 200); 
+    }
+
+    function propagateWinner(currentMatchIdx) {
+        const m = window.state.matches[currentMatchIdx]; if (!m.nextP) return; 
+        const nextIdx = m.nextP.p - 1; const nextMatch = { ...window.state.matches[nextIdx] }; 
+        const winnerName = m.winner; const winnerKont = (m.winnerSide === 'biru') ? m.kb : m.km; 
+        
+        if (m.nextP.side === 'biru') { nextMatch.b = winnerName; nextMatch.kb = winnerKont; } 
+        else { nextMatch.m = winnerName; nextMatch.km = winnerKont; } 
+        
+        const opponent = (m.nextP.side === 'biru') ? nextMatch.m : nextMatch.b; 
+        if (opponent === "BYE" && winnerName !== "BYE") { 
+            nextMatch.status = 'selesai'; nextMatch.winner = winnerName; nextMatch.winnerSide = m.nextP.side; 
+            window.broadcast(`matches/${nextIdx}`, nextMatch); setTimeout(() => propagateWinner(nextIdx), 100); 
+        } else { window.broadcast(`matches/${nextIdx}`, nextMatch); }
+    }
+
+    // Ekspor Template Excel Sesuai dengan Format Standar Loting/Operator
+    window.exportTemplateExcel = function() {
+        const data = [{ 
+            "NO": 1, 
+            "PARTAI": 1, 
+            "FASE": "PENYISIHAN", 
+            "KATEGORI": "56KG SENIOR PUTRA", 
+            "NAMA PESERTA (BIRU)": "BUDI", 
+            "KONTINGEN (BIRU)": "DKI JAKARTA", 
+            "BB (BIRU)": "55.5", 
+            "NAMA PESERTA (MERAH)": "ANDI", 
+            "KONTINGEN (MERAH)": "JATIM", 
+            "BB (MERAH)": "56" 
+        }];
+        const ws = XLSX.utils.json_to_sheet(data);
+        ws['!cols'] = [{ wch: 5 }, { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 10 }, { wch: 25 }, { wch: 20 }, { wch: 10 }];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Jadwal_Sanda"); XLSX.writeFile(wb, "Template_Jadwal_Sanda.xlsx");
+    }
+
+    // Parser Excel yang Diperbarui (Lebih cerdas & komprehensif)
+    window.handleJadwalExcelImport = function(event) {
+        const file = event.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+
+                let imported = [];
+                jsonData.forEach(row => {
+                    const getVal = (arr) => { 
+                        for(let k of Object.keys(row)) { 
+                            if(arr.some(pn => k.toUpperCase().includes(pn))) return row[k].toString().trim(); 
+                        } 
+                        return ""; 
+                    };
+                    
+                    let p = parseInt(getVal(["PARTAI", "NO"])); 
+                    if(isNaN(p) || p <= 0) return;
+
+                    let bName = getVal(["NAMA PESERTA (BIRU)", "NAMA ATLET (BIRU)", "NAMA BIRU", "ATLET BIRU", "BIRU"]); 
+                    let mName = getVal(["NAMA PESERTA (MERAH)", "NAMA ATLET (MERAH)", "NAMA MERAH", "ATLET MERAH", "MERAH"]);
+                    
+                    if (!bName) { bName = "BYE"; } 
+                    if (!mName) { mName = "BYE"; }
+                    
+                    let katString = getVal(["KATEGORI", "KELAS TANDING"]) || "56KG SENIOR PUTRA"; 
+                    let kParts = katString.split(" ");
+                    let kelas = kParts[0] || "56KG"; 
+                    let gender = katString.toUpperCase().includes("PUTRI") ? "PUTRI" : "PUTRA"; 
+                    let cat = kParts.slice(1).join(" ").replace(/(PUTRA|PUTRI)/ig, '').trim() || "SENIOR";
+
+                    let kb = getVal(["KONTINGEN (BIRU)", "KONTINGEN BIRU", "SASANA (BIRU)", "TIM BIRU", "ASAL BIRU"]).toUpperCase();
+                    let km = getVal(["KONTINGEN (MERAH)", "KONTINGEN MERAH", "SASANA (MERAH)", "TIM MERAH", "ASAL MERAH"]).toUpperCase();
+                    
+                    let beratB = getVal(["BB (BIRU)", "BB BIRU", "BERAT BADAN (BIRU)", "BERAT (BIRU)"]);
+                    let beratM = getVal(["BB (MERAH)", "BB MERAH", "BERAT BADAN (MERAH)", "BERAT (MERAH)"]);
+
+                    imported.push({ 
+                        p: p, 
+                        fase: (getVal(["FASE", "BABAK"]) || "PENYISIHAN").toUpperCase(), 
+                        kelas: kelas.toUpperCase(), 
+                        cat: cat.toUpperCase(), 
+                        gender: gender, 
+                        b: bName.toUpperCase(), 
+                        kb: kb || "-", 
+                        beratB: beratB || "-", 
+                        m: mName.toUpperCase(), 
+                        km: km || "-", 
+                        beratM: beratM || "-", 
+                        status: 'idle' 
+                    });
+                });
+
+                if (imported.length > 0) {
+                    let curr = [...window.state.matches];
+                    imported.forEach(m => { 
+                        if (m.p-1 >= 0 && m.p-1 < curr.length) curr[m.p-1] = { ...curr[m.p-1], ...m }; 
+                    });
+                    window.broadcast('matches', curr); 
+                    showNotif(`${imported.length} Partai Diimpor!`);
+                }
+            } catch (err) { alert("Format Excel tidak sesuai atau gagal dibaca."); }
+            event.target.value = ""; // Reset input
+        };
+        reader.readAsArrayBuffer(file);
+    }
+</script>
+</body>
+</html>
